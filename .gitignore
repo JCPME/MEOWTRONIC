@@ -229,7 +229,10 @@ Module.symvers
 Mkfile.old
 dkms.conf
 
-.launch
+*/*.launch
+*/*.project
+*/*.cproject
+*.mxproject
 
 [Rr]elease
 [Dd]ebug
