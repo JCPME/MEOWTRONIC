@@ -89,13 +89,13 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_SPI2_Init();
+//MX_SPI2_Init();
   /* USER CODE BEGIN 2 */
   HAL_Delay(1000);
 
   HX711_Init();
   ST7789_Init();
-  ST7789_Test();
+  //ST7789_Test();
 
 
   /* USER CODE END 2 */
