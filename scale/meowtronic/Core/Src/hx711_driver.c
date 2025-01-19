@@ -26,7 +26,7 @@ uint8_t HX711_IsReady(void) {
     return (HAL_GPIO_ReadPin(HX711_DATA_GPIO_Port, HX711_DATA_Pin) == GPIO_PIN_RESET);
 }
 
-int32_t HX711_calibrate(void){
+int32_t HX711_Calibrate(void){
 	return HX711_Read();
 }
 

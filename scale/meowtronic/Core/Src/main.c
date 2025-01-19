@@ -40,6 +40,9 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+I2C_HandleTypeDef hi2c1;
+DMA_HandleTypeDef hdma_i2c1_tx;
+
 SPI_HandleTypeDef hspi2;
 
 /* USER CODE BEGIN PV */
@@ -50,7 +53,9 @@ SPI_HandleTypeDef hspi2;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_SPI2_Init(void);
+static void MX_I2C1_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -89,23 +94,60 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_SPI2_Init();
+  MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
   HAL_Delay(1000);
 
   HX711_Init();
   ST7789_Init();
-  ST7789_Test();
+  ST7789_Fill_Color(LGRAY);
+  char display_buffer[50];
+
+
+  // Data to send
+
+
+
+  //ST7789_Test();
 
 
   /* USER CODE END 2 */
 
+  void writeEEPROM(uint16_t mem_address, uint8_t device_adress, uint8_t *data, uint16_t size) {
+      HAL_StatusTypeDef status;
+
+      status = HAL_I2C_Mem_Write(&hi2c1, device_adress, mem_address, I2C_MEMADD_SIZE_16BIT, data, size, HAL_MAX_DELAY);
+      if (status != HAL_OK) {
+          // Handle error
+          Error_Handler();
+      }
+
+      // Wait for EEPROM internal write cycle (~5 ms)
+      HAL_Delay(5);
+  }
+
+  // Function to read data from EEPROM
+  void readEEPROM(uint16_t mem_address, uint8_t device_address, uint8_t *data, uint16_t size) {
+      HAL_StatusTypeDef status;
+
+      status = HAL_I2C_Mem_Read(&hi2c1, device_address, mem_address, I2C_MEMADD_SIZE_16BIT, data, size, HAL_MAX_DELAY);
+      if (status != HAL_OK) {
+          // Handle error
+          Error_Handler();
+      }
+  }
+
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  uint16_t mem_adress = 0x0124;
+  uint8_t device_adress = 0x50 << 1;
+  uint8_t data[1] = "H";
+  uint8_t read_data[1];
 
 
-  int startup = 1;
-  int init_point = 0;
+  int init_point = HX711_Calibrate();
   int32_t raw_value = 0;
 
   while (1)
@@ -122,23 +164,27 @@ int main(void)
       if (HX711_IsReady()) {
           // Read raw data from HX711
 
-          if (startup == 1){
-        	  printf("calibrating...\n");
-        	  init_point = HX711_calibrate();
-        	  printf("calibrated to:\n", init_point);
-        	  startup = 0;
-          }
-          else{
-        	  raw_value = HX711_Read();
-          }
+    	  raw_value = HX711_Read();
+    	  writeEEPROM(mem_adress, device_adress, data, 1);
+    	  HAL_Delay(500);
+
+    	  readEEPROM(mem_adress, device_adress, read_data, 1);
+
 
 
 
 
           // Convert raw value to weight using calibration
           int32_t weight = 1000*(float)(raw_value-init_point) / SCALE_FACTOR;
+          sprintf(display_buffer, "Raw: %ld Wt: %ld", raw_value, weight);
+
 
           // Print the result (replace with appropriate display or output in your system)
+          ST7789_WriteString(10, 10, display_buffer, Font_7x10, WHITE, LGRAY);
+          sprintf(display_buffer, "First element: %c", read_data[0]);
+          ST7789_WriteString(10, 20, display_buffer, Font_7x10, WHITE, LGRAY);
+          printf(display_buffer);
+
           printf("Raw Value: %ld\tWeight: %ld mg\n", raw_value, weight);
 
 
@@ -194,6 +240,40 @@ void SystemClock_Config(void)
 }
 
 /**
+  * @brief I2C1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_I2C1_Init(void)
+{
+
+  /* USER CODE BEGIN I2C1_Init 0 */
+
+  /* USER CODE END I2C1_Init 0 */
+
+  /* USER CODE BEGIN I2C1_Init 1 */
+
+  /* USER CODE END I2C1_Init 1 */
+  hi2c1.Instance = I2C1;
+  hi2c1.Init.ClockSpeed = 100000;
+  hi2c1.Init.DutyCycle = I2C_DUTYCYCLE_2;
+  hi2c1.Init.OwnAddress1 = 0;
+  hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+  hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+  hi2c1.Init.OwnAddress2 = 0;
+  hi2c1.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+  hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+  if (HAL_I2C_Init(&hi2c1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN I2C1_Init 2 */
+
+  /* USER CODE END I2C1_Init 2 */
+
+}
+
+/**
   * @brief SPI2 Initialization Function
   * @param None
   * @retval None
@@ -228,6 +308,22 @@ static void MX_SPI2_Init(void)
   /* USER CODE BEGIN SPI2_Init 2 */
 
   /* USER CODE END SPI2_Init 2 */
+
+}
+
+/**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Stream6_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream6_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream6_IRQn);
 
 }
 
